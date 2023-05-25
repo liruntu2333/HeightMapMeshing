@@ -17,6 +17,7 @@ public:
     void RunStep();
     void ReverseStep();
     void Run();
+    void Morph(float target);
 
     int NumPoints() const
     {
@@ -78,6 +79,9 @@ private:
     std::vector<int> m_QueueIndexesTmp;
     std::vector<int> m_QueueTmp;
     std::vector<int> m_PendingTmp;
+
+    std::vector<int> m_MorphTarget;
+    std::vector<int> m_MorphTargetTmp;
 
     const float m_MaxError;
     const int m_MaxTriangles;

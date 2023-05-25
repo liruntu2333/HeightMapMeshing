@@ -120,6 +120,8 @@ int main(int, char**)
     std::shared_ptr<Heightmap> hm = nullptr;
     std::shared_ptr<Triangulator> tri = nullptr;
 
+    float morphTarget = 1.0f;
+
     // Main loop
     bool done = false;
     while (!done)
@@ -166,13 +168,17 @@ int main(int, char**)
         bool step = io.KeysDown[ImGui::GetKeyIndex(ImGuiKey_RightArrow)] ||
             ImGui::Button("STEP");
         ImGui::SameLine();
-        bool reverse = ImGui::Button("REVERSE"); ImGui::SameLine();
+        bool reverse = ImGui::Button("REVERSE");
+        ImGui::SameLine();
         bool run = ImGui::Button("RUN");
+        bool morph = ImGui::DragFloat("collapse target", &morphTarget, 0.0005f, 0.0f, 1.0f);
         ImGui::Text(stats.c_str());
         ImGui::End();
 
         if (init)
         {
+            morphTarget = 1.0f;
+
             inFile = filePath;
             hm = std::make_shared<Heightmap>(inFile);
             int w = hm->Width();
@@ -214,6 +220,7 @@ int main(int, char**)
 
         if (step && tri) tri->RunStep();
         if (reverse && tri) tri->ReverseStep();
+        if (morph && tri) tri->Morph(morphTarget);
 
         if (run && tri)
         {
@@ -239,7 +246,7 @@ int main(int, char**)
             }
         }
 
-        if (tri && (run || init || step || reverse))
+        if (tri && (run || init || step || reverse || morph))
         {
             auto points = tri->Points(zScale * zExaggeration);
             auto triangles = tri->Triangles();

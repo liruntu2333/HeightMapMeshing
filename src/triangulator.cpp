@@ -46,6 +46,7 @@ void Triangulator::Snapshot()
     m_QueueIndexesTmp = m_QueueIndexes;
     m_QueueTmp = m_Queue;
     m_PendingTmp = m_Pending;
+    m_MorphTargetTmp = m_MorphTarget;
 }
 
 void Triangulator::ReverseStep()
@@ -58,6 +59,7 @@ void Triangulator::ReverseStep()
     m_QueueIndexes = m_QueueIndexesTmp;
     m_Queue = m_QueueTmp;
     m_Pending = m_PendingTmp;
+    m_MorphTarget = m_MorphTargetTmp;
 }
 
 void Triangulator::Run()
@@ -89,6 +91,16 @@ void Triangulator::Run()
     }
 }
 
+void Triangulator::Morph(float target)
+{
+    const int start = static_cast<float>(m_Points.size()) * target;
+    for (int i = start; i < m_Points.size(); ++i)
+    {
+        if (m_MorphTarget[i] < 0) continue;
+        m_Points[i] = m_Points[m_MorphTarget[i]];
+    }
+}
+
 void Triangulator::Initialize()
 {
     m_Points.clear();
@@ -99,6 +111,7 @@ void Triangulator::Initialize()
     m_QueueIndexes.clear();
     m_Queue.clear();
     m_Pending.clear();
+    m_MorphTarget.clear();
 
     // add points at all four corners
     const int x0 = 0;
@@ -109,6 +122,12 @@ void Triangulator::Initialize()
     const int p1 = AddPoint(glm::ivec2(x1, y0));
     const int p2 = AddPoint(glm::ivec2(x0, y1));
     const int p3 = AddPoint(glm::ivec2(x1, y1));
+
+    m_MorphTarget.resize(4);
+    m_MorphTarget[0] = -1;
+    m_MorphTarget[1] = -1;
+    m_MorphTarget[2] = -1;
+    m_MorphTarget[3] = -1;
 
     // add initial two triangles
     const int t0 = AddTriangle(p3, p0, p2, -1, -1, -1, -1);
@@ -233,6 +252,22 @@ void Triangulator::Step()
         Legalize(t2);
         Legalize(t3);
     };
+
+
+    auto iDot = [](glm::ivec2 v) { return v.x * v.x + v.y * v.y; };
+    int minDis = iDot(p - a);
+    int target = p0;
+    if (const int pbSqr = iDot(p - b); pbSqr <= minDis)
+    {
+        target = p1;
+        minDis = pbSqr;
+    }
+    if (const int pcSqr = iDot(p - c); pcSqr <= minDis)
+    {
+        target = p2;
+        minDis = pcSqr;
+    }
+    m_MorphTarget.emplace_back(target);
 
     if (collinear(a, b, p))
     {
