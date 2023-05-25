@@ -7,8 +7,10 @@ Triangulator::Triangulator(
     float error, int nTri, int nVert) :
     m_Heightmap(heightmap), m_MaxError(error), m_MaxTriangles(nTri), m_MaxPoints(nVert) {}
 
-void Triangulator::RunStep(bool proceed)
+void Triangulator::RunStep()
 {
+    Snapshot();
+
     // helper function to check if triangulation is complete
     const auto done = [this]()
     {
@@ -34,8 +36,34 @@ void Triangulator::RunStep(bool proceed)
     }
 }
 
+void Triangulator::Snapshot()
+{
+    m_PointsTmp = m_Points;
+    m_TrianglesTmp = m_Triangles;
+    m_HalfedgesTmp = m_Halfedges;
+    m_CandidatesTmp = m_Candidates;
+    m_ErrorsTmp = m_Errors;
+    m_QueueIndexesTmp = m_QueueIndexes;
+    m_QueueTmp = m_Queue;
+    m_PendingTmp = m_Pending;
+}
+
+void Triangulator::ReverseStep()
+{
+    m_Points = m_PointsTmp;
+    m_Triangles = m_TrianglesTmp;
+    m_Halfedges = m_HalfedgesTmp;
+    m_Candidates = m_CandidatesTmp;
+    m_Errors = m_ErrorsTmp;
+    m_QueueIndexes = m_QueueIndexesTmp;
+    m_Queue = m_QueueTmp;
+    m_Pending = m_PendingTmp;
+}
+
 void Triangulator::Run()
 {
+    Snapshot();
+
     // helper function to check if triangulation is complete
     const auto done = [this]()
     {

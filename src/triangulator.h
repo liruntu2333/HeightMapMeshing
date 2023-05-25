@@ -14,7 +14,8 @@ public:
         float error, int nTri, int nVert);
 
     void Initialize();
-    void RunStep(bool proceed = true);
+    void RunStep();
+    void ReverseStep();
     void Run();
 
     int NumPoints() const
@@ -56,20 +57,27 @@ private:
     void QueueUp(const int j0);
     bool QueueDown(const int i0, const int n);
 
+    void Snapshot();
+
     std::shared_ptr<Heightmap> m_Heightmap;
 
     std::vector<glm::ivec2> m_Points;
-
     std::vector<int> m_Triangles;
     std::vector<int> m_Halfedges;
-
     std::vector<glm::ivec2> m_Candidates;
     std::vector<float> m_Errors;
     std::vector<int> m_QueueIndexes;
-
     std::vector<int> m_Queue;
-
     std::vector<int> m_Pending;
+
+    std::vector<glm::ivec2> m_PointsTmp;
+    std::vector<int> m_TrianglesTmp;
+    std::vector<int> m_HalfedgesTmp;
+    std::vector<glm::ivec2> m_CandidatesTmp;
+    std::vector<float> m_ErrorsTmp;
+    std::vector<int> m_QueueIndexesTmp;
+    std::vector<int> m_QueueTmp;
+    std::vector<int> m_PendingTmp;
 
     const float m_MaxError;
     const int m_MaxTriangles;
