@@ -145,7 +145,7 @@ int main(int, char**)
 		ImGui::InputText("input height map", filePath, 128);
 		ImGui::InputFloat("z scale relative to x & y", &zScale);
 		ImGui::InputFloat("z exaggeration", &zExaggeration);
-		ImGui::InputFloat("maximum triangulation error * 1000", &maxError);
+		ImGui::InputFloat("/1000 maximum triangulation error", &maxError);
 		ImGui::InputInt("maximum number of triangles", &maxTriangles);
 		ImGui::InputInt("maximum number of vertices", &maxPoints);
 		ImGui::InputFloat("solid base height", &baseHeight);
@@ -158,32 +158,36 @@ int main(int, char**)
 		ImGui::Checkbox("output hillshade and normal", &outputFiles);
 		ImGui::InputFloat("hillshade light altitude", &shadeAlt);
 		ImGui::InputFloat("hillshade light azimuth", &shadeAz);
-		bool run = ImGui::Button("TRIANGULATE");
+		bool init = ImGui::Button("INIT"); ImGui::SameLine();
+		bool step = io.KeysDown[ImGui::GetKeyIndex(ImGuiKey_RightArrow)] ||
+			ImGui::Button("STEP");
+		ImGui::SameLine();
+		bool run = ImGui::Button("RUN");
 		ImGui::Text(stats.c_str());
 		ImGui::End();
 
-		if (run)
+		if (init || step || run)
 		{
 			inFile = filePath;
-			const auto startTime = std::chrono::steady_clock::now();
+			//const auto startTime = std::chrono::steady_clock::now();
 			// helper function to display elapsed time of each step
-			const auto timed = [](const std::string& message) -> std::function<void()>
-			{
-				printf("%s... ", message.c_str());
-				fflush(stdout);
-				const auto startTime = std::chrono::steady_clock::now();
-				return [message, startTime]()
-				{
-					const std::chrono::duration<double> elapsed =
-						std::chrono::steady_clock::now() - startTime;
-					printf("%gs\n", elapsed.count());
-				};
-			};
+			//const auto timed = [](const std::string& message) -> std::function<void()>
+			//{
+			//	printf("%s... ", message.c_str());
+			//	fflush(stdout);
+			//	const auto startTime = std::chrono::steady_clock::now();
+			//	return [message, startTime]()
+			//	{
+			//		const std::chrono::duration<double> elapsed =
+			//			std::chrono::steady_clock::now() - startTime;
+			//		printf("%gs\n", elapsed.count());
+			//	};
+			//};
 
 			// load heightmap
-			auto done = timed("loading heightmap");
+			//auto done = timed("loading heightmap");
 			const auto hm = std::make_shared<Heightmap>(inFile);
-			done();
+			//done();
 
 			int w = hm->Width();
 			int h = hm->Height();
@@ -210,9 +214,9 @@ int main(int, char**)
 			// blur heightmap
 			if (blurSigma > 0)
 			{
-				done = timed("blurring heightmap");
+				//done = timed("blurring heightmap");
 				hm->GaussianBlur(blurSigma);
-				done();
+				//done();
 			}
 
 			// apply gamma curve
@@ -232,12 +236,13 @@ int main(int, char**)
 			h = hm->Height();
 
 			// triangulate
-			done = timed("triangulating");
-			Triangulator tri(hm);
-			tri.Run(maxError / 1000.0f, maxTriangles, maxPoints);
+			static Triangulator tri(hm, maxError / 1000.0f, maxTriangles, maxPoints);
+
+			if(init) tri.Initialize();
+			if (step) tri.RunStep();
+			if (run) tri.Run();
 			auto points = tri.Points(zScale * zExaggeration);
 			auto triangles = tri.Triangles();
-			done();
 
 			const auto& [vb, ib] = CreateTerrainMesh(points, triangles);
 			g_MeshRenderer->SetVerticesAndIndices(vb, ib);
@@ -245,10 +250,10 @@ int main(int, char**)
 			// add base
 			if (baseHeight > 0)
 			{
-				done = timed("adding solid base");
+				//done = timed("adding solid base");
 				const float z = -baseHeight * zScale * zExaggeration;
 				AddBase(points, triangles, w, h, z);
-				done();
+				//done();
 			}
 
 			// display statistics
@@ -266,25 +271,25 @@ int main(int, char**)
 			if (outputFiles)
 			{
 				// write output file
-				done = timed("writing output");
+				//done = timed("writing output");
 				SaveBinarySTL(outFile, points, triangles);
-				done();
+				//done();
 
 				// compute normal map
-				done = timed("computing normal map");
+				//done = timed("computing normal map");
 				hm->SaveNormalmap(normalmapPath, zScale * zExaggeration);
-				done();
+				//done();
 
 				// compute hillshade image
-				done = timed("computing hillshade image");
+				//done = timed("computing hillshade image");
 				hm->SaveHillshade(shadePath, zScale * zExaggeration, shadeAlt, shadeAz);
-				done();
+				//done();
 			}
 
 			// show total elapsed time
-			const std::chrono::duration<double> elapsed =
-				std::chrono::steady_clock::now() - startTime;
-			printf("%gs\n", elapsed.count());
+			//const std::chrono::duration<double> elapsed =
+			//	std::chrono::steady_clock::now() - startTime;
+			//printf("%gs\n", elapsed.count());
 		}
 
 		// Rendering

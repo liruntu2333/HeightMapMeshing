@@ -2,14 +2,76 @@
 
 #include <algorithm>
 
-Triangulator::Triangulator(const std::shared_ptr<Heightmap> &heightmap) :
-    m_Heightmap(heightmap) {}
+Triangulator::Triangulator(
+    const std::shared_ptr<Heightmap>& heightmap,
+    float error, int nTri, int nVert) :
+    m_Heightmap(heightmap), m_MaxError(error), m_MaxTriangles(nTri), m_MaxPoints(nVert) {}
 
-void Triangulator::Run(
-    const float maxError,
-    const int maxTriangles,
-    const int maxPoints)
+void Triangulator::RunStep(bool proceed)
 {
+    // helper function to check if triangulation is complete
+    const auto done = [this]()
+    {
+        const float e = Error();
+        if (e <= m_MaxError)
+        {
+            return true;
+        }
+        if (m_MaxTriangles > 0 && NumTriangles() >= m_MaxTriangles)
+        {
+            return true;
+        }
+        if (m_MaxPoints > 0 && NumPoints() >= m_MaxPoints)
+        {
+            return true;
+        }
+        return e == 0;
+    };
+
+    if (!done())
+    {
+        Step();
+    }
+}
+
+void Triangulator::Run()
+{
+    // helper function to check if triangulation is complete
+    const auto done = [this]()
+    {
+        const float e = Error();
+        if (e <= m_MaxError)
+        {
+            return true;
+        }
+        if (m_MaxTriangles > 0 && NumTriangles() >= m_MaxTriangles)
+        {
+            return true;
+        }
+        if (m_MaxPoints > 0 && NumPoints() >= m_MaxPoints)
+        {
+            return true;
+        }
+        return e == 0;
+    };
+
+    while (!done())
+    {
+        Step();
+    }
+}
+
+void Triangulator::Initialize()
+{
+    m_Points.clear();
+    m_Triangles.clear();
+    m_Halfedges.clear();
+    m_Candidates.clear();
+    m_Errors.clear();
+    m_QueueIndexes.clear();
+    m_Queue.clear();
+    m_Pending.clear();
+
     // add points at all four corners
     const int x0 = 0;
     const int y0 = 0;
@@ -24,45 +86,31 @@ void Triangulator::Run(
     const int t0 = AddTriangle(p3, p0, p2, -1, -1, -1, -1);
     AddTriangle(p0, p3, p1, t0, -1, -1, -1);
     Flush();
-
-    // helper function to check if triangulation is complete
-    const auto done = [this, maxError, maxTriangles, maxPoints]() {
-        const float e = Error();
-        if (e <= maxError) {
-            return true;
-        }
-        if (maxTriangles > 0 && NumTriangles() >= maxTriangles) {
-            return true;
-        }
-        if (maxPoints > 0 && NumPoints() >= maxPoints) {
-            return true;
-        }
-        return e == 0;
-    };
-
-    while (!done()) {
-        Step();
-    }
 }
 
-float Triangulator::Error() const {
+float Triangulator::Error() const
+{
     return m_Errors[m_Queue[0]];
 }
 
-std::vector<glm::vec3> Triangulator::Points(const float zScale) const {
+std::vector<glm::vec3> Triangulator::Points(const float zScale) const
+{
     std::vector<glm::vec3> points;
     points.reserve(m_Points.size());
     const int h1 = m_Heightmap->Height() - 1;
-    for (const glm::ivec2 &p : m_Points) {
+    for (const glm::ivec2& p : m_Points)
+    {
         points.emplace_back(p.x, h1 - p.y, m_Heightmap->At(p.x, p.y) * zScale);
     }
     return points;
 }
 
-std::vector<glm::ivec3> Triangulator::Triangles() const {
+std::vector<glm::ivec3> Triangulator::Triangles() const
+{
     std::vector<glm::ivec3> triangles;
     triangles.reserve(m_Queue.size());
-    for (const int i : m_Queue) {
+    for (const int i : m_Queue)
+    {
         triangles.emplace_back(
             m_Triangles[i * 3 + 0],
             m_Triangles[i * 3 + 1],
@@ -71,13 +119,15 @@ std::vector<glm::ivec3> Triangulator::Triangles() const {
     return triangles;
 }
 
-void Triangulator::Flush() {
-    for (const int t : m_Pending) {
+void Triangulator::Flush()
+{
+    for (const int t : m_Pending)
+    {
         // rasterize triangle to find maximum pixel error
         const auto pair = m_Heightmap->FindCandidate(
-            m_Points[m_Triangles[t*3+0]],
-            m_Points[m_Triangles[t*3+1]],
-            m_Points[m_Triangles[t*3+2]]);
+            m_Points[m_Triangles[t * 3 + 0]],
+            m_Points[m_Triangles[t * 3 + 1]],
+            m_Points[m_Triangles[t * 3 + 2]]);
         // update metadata
         m_Candidates[t] = pair.first;
         m_Errors[t] = pair.second;
@@ -88,7 +138,8 @@ void Triangulator::Flush() {
     m_Pending.clear();
 }
 
-void Triangulator::Step() {
+void Triangulator::Step()
+{
     // pop triangle with highest error from priority queue
     const int t = QueuePop();
 
@@ -110,10 +161,11 @@ void Triangulator::Step() {
     const auto collinear = [](
         const glm::ivec2 p0, const glm::ivec2 p1, const glm::ivec2 p2)
     {
-        return (p1.y-p0.y)*(p2.x-p1.x) == (p2.y-p1.y)*(p1.x-p0.x);
+        return (p1.y - p0.y) * (p2.x - p1.x) == (p2.y - p1.y) * (p1.x - p0.x);
     };
 
-    const auto handleCollinear = [this](const int pn, const int a) {
+    const auto handleCollinear = [this](const int pn, const int a)
+    {
         const int a0 = a - a % 3;
         const int al = a0 + (a + 1) % 3;
         const int ar = a0 + (a + 2) % 3;
@@ -125,7 +177,8 @@ void Triangulator::Step() {
 
         const int b = m_Halfedges[a];
 
-        if (b < 0) {
+        if (b < 0)
+        {
             const int t0 = AddTriangle(pn, p0, pr, -1, har, -1, a0);
             const int t1 = AddTriangle(p0, pn, pl, t0, -1, hal, -1);
             Legalize(t0 + 1);
@@ -153,13 +206,20 @@ void Triangulator::Step() {
         Legalize(t3);
     };
 
-    if (collinear(a, b, p)) {
+    if (collinear(a, b, p))
+    {
         handleCollinear(pn, e0);
-    } else if (collinear(b, c, p)) {
+    }
+    else if (collinear(b, c, p))
+    {
         handleCollinear(pn, e1);
-    } else if (collinear(c, a, p)) {
+    }
+    else if (collinear(c, a, p))
+    {
         handleCollinear(pn, e2);
-    } else {
+    }
+    else
+    {
         const int h0 = m_Halfedges[e0];
         const int h1 = m_Halfedges[e1];
         const int h2 = m_Halfedges[e2];
@@ -176,7 +236,8 @@ void Triangulator::Step() {
     Flush();
 }
 
-int Triangulator::AddPoint(const glm::ivec2 point) {
+int Triangulator::AddPoint(const glm::ivec2 point)
+{
     const int i = m_Points.size();
     m_Points.push_back(point);
     return i;
@@ -187,7 +248,8 @@ int Triangulator::AddTriangle(
     const int ab, const int bc, const int ca,
     int e)
 {
-    if (e < 0) {
+    if (e < 0)
+    {
         // new halfedge index
         e = m_Triangles.size();
         // add triangle vertices
@@ -202,7 +264,9 @@ int Triangulator::AddTriangle(
         m_Candidates.emplace_back(0);
         m_Errors.push_back(0);
         m_QueueIndexes.push_back(-1);
-    } else {
+    }
+    else
+    {
         // set triangle vertices
         m_Triangles[e + 0] = a;
         m_Triangles[e + 1] = b;
@@ -214,13 +278,16 @@ int Triangulator::AddTriangle(
     }
 
     // link neighboring halfedges
-    if (ab >= 0) {
+    if (ab >= 0)
+    {
         m_Halfedges[ab] = e + 0;
     }
-    if (bc >= 0) {
+    if (bc >= 0)
+    {
         m_Halfedges[bc] = e + 1;
     }
-    if (ca >= 0) {
+    if (ca >= 0)
+    {
         m_Halfedges[ca] = e + 2;
     }
 
@@ -232,7 +299,8 @@ int Triangulator::AddTriangle(
     return e;
 }
 
-void Triangulator::Legalize(const int a) {
+void Triangulator::Legalize(const int a)
+{
     // if the pair of triangles doesn't satisfy the Delaunay condition
     // (p1 is inside the circumcircle of [p0, pl, pr]), flip them,
     // then do the same check/flip recursively for the new pair of triangles
@@ -261,12 +329,13 @@ void Triangulator::Legalize(const int a) {
         const int64_t ap = dx * dx + dy * dy;
         const int64_t bp = ex * ex + ey * ey;
         const int64_t cp = fx * fx + fy * fy;
-        return dx*(ey*cp-bp*fy)-dy*(ex*cp-bp*fx)+ap*(ex*fy-ey*fx) < 0;
+        return dx * (ey * cp - bp * fy) - dy * (ex * cp - bp * fx) + ap * (ex * fy - ey * fx) < 0;
     };
 
     const int b = m_Halfedges[a];
 
-    if (b < 0) {
+    if (b < 0)
+    {
         return;
     }
 
@@ -281,7 +350,8 @@ void Triangulator::Legalize(const int a) {
     const int pl = m_Triangles[al];
     const int p1 = m_Triangles[bl];
 
-    if (!inCircle(m_Points[p0], m_Points[pr], m_Points[pl], m_Points[p1])) {
+    if (!inCircle(m_Points[p0], m_Points[pr], m_Points[pl], m_Points[p1]))
+    {
         return;
     }
 
@@ -302,54 +372,66 @@ void Triangulator::Legalize(const int a) {
 
 // priority queue functions
 
-void Triangulator::QueuePush(const int t) {
+void Triangulator::QueuePush(const int t)
+{
     const int i = m_Queue.size();
     m_QueueIndexes[t] = i;
     m_Queue.push_back(t);
     QueueUp(i);
 }
 
-int Triangulator::QueuePop() {
+int Triangulator::QueuePop()
+{
     const int n = m_Queue.size() - 1;
     QueueSwap(0, n);
     QueueDown(0, n);
     return QueuePopBack();
 }
 
-int Triangulator::QueuePopBack() {
+int Triangulator::QueuePopBack()
+{
     const int t = m_Queue.back();
     m_Queue.pop_back();
     m_QueueIndexes[t] = -1;
     return t;
 }
 
-void Triangulator::QueueRemove(const int t) {
+void Triangulator::QueueRemove(const int t)
+{
     const int i = m_QueueIndexes[t];
-    if (i < 0) {
+    if (i < 0)
+    {
         const auto it = std::find(m_Pending.begin(), m_Pending.end(), t);
-        if (it != m_Pending.end()) {
+        if (it != m_Pending.end())
+        {
             std::swap(*it, m_Pending.back());
             m_Pending.pop_back();
-        } else {
+        }
+        else
+        {
             // this shouldn't happen!
         }
         return;
     }
     const int n = m_Queue.size() - 1;
-    if (n != i) {
+    if (n != i)
+    {
         QueueSwap(i, n);
-        if (!QueueDown(i, n)) {
+        if (!QueueDown(i, n))
+        {
             QueueUp(i);
         }
     }
     QueuePopBack();
 }
 
-bool Triangulator::QueueLess(const int i, const int j) const {
+bool Triangulator::QueueLess(const int i, const int j) const
+{
     return -m_Errors[m_Queue[i]] < -m_Errors[m_Queue[j]];
 }
 
-void Triangulator::QueueSwap(const int i, const int j) {
+void Triangulator::QueueSwap(const int i, const int j)
+{
     const int pi = m_Queue[i];
     const int pj = m_Queue[j];
     m_Queue[i] = pj;
@@ -358,11 +440,14 @@ void Triangulator::QueueSwap(const int i, const int j) {
     m_QueueIndexes[pj] = i;
 }
 
-void Triangulator::QueueUp(const int j0) {
+void Triangulator::QueueUp(const int j0)
+{
     int j = j0;
-    while (1) {
+    while (1)
+    {
         int i = (j - 1) / 2;
-        if (i == j || !QueueLess(j, i)) {
+        if (i == j || !QueueLess(j, i))
+        {
             break;
         }
         QueueSwap(i, j);
@@ -370,19 +455,24 @@ void Triangulator::QueueUp(const int j0) {
     }
 }
 
-bool Triangulator::QueueDown(const int i0, const int n) {
+bool Triangulator::QueueDown(const int i0, const int n)
+{
     int i = i0;
-    while (1) {
+    while (1)
+    {
         const int j1 = 2 * i + 1;
-        if (j1 >= n || j1 < 0) {
+        if (j1 >= n || j1 < 0)
+        {
             break;
         }
         const int j2 = j1 + 1;
         int j = j1;
-        if (j2 < n && QueueLess(j2, j1)) {
+        if (j2 < n && QueueLess(j2, j1))
+        {
             j = j2;
         }
-        if (!QueueLess(j, i)) {
+        if (!QueueLess(j, i))
+        {
             break;
         }
         QueueSwap(i, j);

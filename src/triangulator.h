@@ -6,20 +6,24 @@
 
 #include "heightmap.h"
 
-class Triangulator {
+class Triangulator
+{
 public:
-    Triangulator(const std::shared_ptr<Heightmap> &heightmap);
+    Triangulator(
+        const std::shared_ptr<Heightmap>& heightmap,
+        float error, int nTri, int nVert);
 
-    void Run(
-        const float maxError,
-        const int maxTriangles,
-        const int maxPoints);
+    void Initialize();
+    void RunStep(bool proceed = true);
+    void Run();
 
-    int NumPoints() const {
+    int NumPoints() const
+    {
         return m_Points.size();
     }
 
-    int NumTriangles() const {
+    int NumTriangles() const
+    {
         return m_Queue.size();
     }
 
@@ -66,4 +70,8 @@ private:
     std::vector<int> m_Queue;
 
     std::vector<int> m_Pending;
+
+    const float m_MaxError;
+    const int m_MaxTriangles;
+    const int m_MaxPoints;
 };
