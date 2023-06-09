@@ -35,6 +35,8 @@ public:
 
     std::vector<glm::ivec3> Triangles() const;
 
+    std::pair<std::vector<glm::vec3>, std::vector<glm::ivec3>> MeshGrid(const float zScale) const;
+
 private:
     void Flush();
 

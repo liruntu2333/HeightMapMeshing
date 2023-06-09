@@ -20,5 +20,5 @@ private:
 	float m_Fov = DirectX::XM_PIDIV4;
 	float m_AspectRatio = 4.0f / 3.0f;
 	float m_NearPlane = 1.0f;
-	float m_FarPlane = 10000.0f;
+	float m_FarPlane = 20000.0f;
 };

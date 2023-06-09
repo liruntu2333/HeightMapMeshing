@@ -144,12 +144,48 @@ std::vector<glm::vec3> Triangulator::Points(const float zScale) const
 {
     std::vector<glm::vec3> points;
     points.reserve(m_Points.size());
-    const int h1 = m_Heightmap->Height() - 1;
     for (const glm::ivec2& p : m_Points)
     {
-        points.emplace_back(p.x, h1 - p.y, m_Heightmap->At(p.x, p.y) * zScale);
+        points.emplace_back(p.x, p.y, m_Heightmap->At(p.x, p.y) * zScale);
     }
     return points;
+}
+
+std::pair<std::vector<glm::vec3>, std::vector<glm::ivec3>> Triangulator::MeshGrid(const float zScale) const
+{
+    const int triangleCount = NumTriangles();
+    const float wDivH = static_cast<float>(m_Heightmap->Width()) / m_Heightmap->Height();
+    const int gh = std::sqrt(triangleCount / (2 * wDivH)) + 1;
+    const int gw = static_cast<int>(gh * wDivH) + 1;
+    std::vector<glm::vec3> points;
+    points.reserve(gw * gh);
+    for (int i = 0; i < gw; ++i)
+    {
+        for (int j = 0; j < gh; ++j)
+        {
+            const float x = static_cast<float>(i) / (gw - 1) * (m_Heightmap->Width() - 1);
+            const float y = static_cast<float>(j) / (gh - 1) * (m_Heightmap->Height() - 1);
+            const float z = m_Heightmap->At(x, y) * zScale;
+            points.emplace_back(x, y, z);
+        }
+    }
+
+    std::vector<glm::ivec3> triangles;
+    triangles.reserve((gw - 1) * (gh - 1) * 2);
+    for (int i = 0; i < gw - 1; ++i)
+    {
+        for (int j = 0; j < gh - 1; ++j)
+        {
+            const int p0 = i * gh + j;
+            const int p1 = p0 + 1;
+            const int p2 = (i + 1) * gh + j;
+            const int p3 = p2 + 1;
+            triangles.emplace_back(p0, p3, p2);
+            triangles.emplace_back(p0, p1, p3);
+        }
+    }
+
+    return { std::move(points), std::move(triangles) };
 }
 
 std::vector<glm::ivec3> Triangulator::Triangles() const

@@ -65,6 +65,31 @@ void MeshRenderer::Render(ID3D11DeviceContext* context)
     context->DrawIndexed(m_IndexCount, 0, 0);
 }
 
+void MeshRenderer::RenderGrid(ID3D11DeviceContext* context)
+{
+    if (!m_Loaded) return;
+
+    UpdateBuffer(context);
+
+
+    constexpr UINT stride = sizeof(Vertex);
+    constexpr UINT offset = 0;
+    context->IASetInputLayout(m_InputLayout.Get());
+    const auto vb = m_VertexBufferGrid.Get();
+    context->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
+    context->IASetIndexBuffer(m_IndexBufferGrid.Get(), DXGI_FORMAT_R32_UINT, 0);
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    const auto cb0 = m_Cb0.GetBuffer();
+    context->VSSetConstantBuffers(0, 1, &cb0);
+    context->VSSetShader(m_Vs.Get(), nullptr, 0);
+    context->RSSetState(s_CommonStates->Wireframe());
+    context->PSSetShader(m_Ps.Get(), nullptr, 0);
+    context->OMSetBlendState(s_CommonStates->Opaque(), nullptr, 0xffffffff);
+    context->OMSetDepthStencilState(s_CommonStates->DepthDefault(), 0);
+    context->DrawIndexed(m_IndexCountGrid, 0, 0);
+}
+
 void MeshRenderer::UpdateBuffer(ID3D11DeviceContext* context)
 {
     m_Cb0.SetData(context, *m_Constants);
@@ -88,5 +113,25 @@ void MeshRenderer::SetVerticesAndIndices(const std::vector<Vertex>& vertices, co
         D3D11_BIND_INDEX_BUFFER,
         m_IndexBuffer.ReleaseAndGetAddressOf()));
 
+    m_Loaded = true;
+}
+
+void MeshRenderer::SetVerticesAndIndicesNaive(
+    const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
+{
+    m_IndexCountGrid = static_cast<uint32_t>(indices.size());
+    ThrowIfFailed(DirectX::CreateStaticBuffer<Vertex>(
+        m_Device,
+        vertices.data(),
+        vertices.size(),
+        D3D11_BIND_VERTEX_BUFFER,
+        m_VertexBufferGrid.ReleaseAndGetAddressOf()));
+
+    ThrowIfFailed(DirectX::CreateStaticBuffer<uint32_t>(
+        m_Device,
+        indices.data(),
+        indices.size(),
+        D3D11_BIND_INDEX_BUFFER,
+        m_IndexBufferGrid.ReleaseAndGetAddressOf()));
     m_Loaded = true;
 }

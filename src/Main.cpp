@@ -115,6 +115,7 @@ int main(int, char**)
     float shadeAlt = 45; // hillshade light altitude
     float shadeAz = 0; //hillshade light azimuth
     std::string stats = "null";
+    std::string gridStats = "null";
     bool outputFiles = false;
 
     std::shared_ptr<Heightmap> hm = nullptr;
@@ -124,6 +125,7 @@ int main(int, char**)
 
     // Main loop
     bool done = false;
+    bool grid = false;
     while (!done)
     {
         // Poll and handle messages (inputs, window resize, etc.)
@@ -172,7 +174,9 @@ int main(int, char**)
         ImGui::SameLine();
         bool run = ImGui::Button("RUN");
         bool morph = ImGui::DragFloat("collapse target", &morphTarget, 0.0005f, 0.0f, 1.0f);
-        ImGui::Text(stats.c_str());
+        ImGui::Checkbox("grid", &grid);
+        if (grid) ImGui::Text(gridStats.c_str());
+        else ImGui::Text(stats.c_str());
         ImGui::End();
 
         if (init)
@@ -250,10 +254,22 @@ int main(int, char**)
         {
             auto points = tri->Points(zScale * zExaggeration);
             auto triangles = tri->Triangles();
+
+
             if (!points.empty())
             {
                 const auto& [vb, ib] = CreateTerrainMesh(points, triangles);
                 g_MeshRenderer->SetVerticesAndIndices(vb, ib);
+            }
+
+            if (run)
+            {
+                auto [pointsGrid, trianglesGrid] = tri->MeshGrid(zScale * zExaggeration);
+                const auto& [vbg, ibg] = CreateTerrainMesh(pointsGrid, trianglesGrid);
+                g_MeshRenderer->SetVerticesAndIndicesNaive(vbg, ibg);
+
+                gridStats = "grid: " + std::to_string(trianglesGrid.size()) + " triangles" + "\n" +
+                    std::to_string(pointsGrid.size()) + " vertices" + "\n";
             }
 
             // display statistics
@@ -276,7 +292,9 @@ int main(int, char**)
             D3D11_CLEAR_DEPTH, 1.0f, 0);
 
         g_Camera->SetViewPort(g_pd3dDeviceContext);
-        g_MeshRenderer->Render(g_pd3dDeviceContext);
+        if (grid)
+            g_MeshRenderer->RenderGrid(g_pd3dDeviceContext);
+        else g_MeshRenderer->Render(g_pd3dDeviceContext);
         //g_PlaneRenderer->UpdateBuffer(g_pd3dDeviceContext);
         //g_PlaneRenderer->Render(g_pd3dDeviceContext);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
